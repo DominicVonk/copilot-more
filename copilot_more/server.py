@@ -103,4 +103,51 @@ async def proxy_chat_completions(request: Request):
 
 @app.post("/v1/chat/completions")
 async def v1_proxy_chat_completions(request: Request):
-    return proxy_chat_completions(request)
+    """
+    Proxies chat completion requests with SSE support.
+    """
+    request_body = await request.json()
+
+    logger.info(f"Received request: {json.dumps(request_body, indent=2)}")
+
+    try:
+        request_body = preprocess_request_body(request_body)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(400, f"Error preprocessing request: {str(e)}")
+
+    async def stream_response():
+        try:
+            token = await get_cached_copilot_token()
+            async with ClientSession(timeout=TIMEOUT) as session:
+                async with session.post(
+                    API_URL,
+                    json=request_body,
+                    headers={
+                        "Authorization": f"Bearer {token['token']}",
+                        "Content-Type": "application/json",
+                        "Accept": "text/event-stream",
+                        "editor-version": "vscode/1.95.3"
+                    },
+                ) as response:
+                    if response.status != 200:
+                        error_message = await response.text()
+                        logger.error(f"API error: {error_message}")
+                        raise HTTPException(
+                            response.status,
+                            f"API error: {error_message}"
+                        )
+
+                    async for chunk in response.content.iter_chunks():
+                        if chunk:
+                            yield chunk[0]
+
+        except Exception as e:
+            logger.error(f"Error in stream_response: {str(e)}")
+            yield json.dumps({"error": str(e)}).encode("utf-8")
+
+    return StreamingResponse(
+        stream_response(),
+        media_type="text/event-stream",
+    )
