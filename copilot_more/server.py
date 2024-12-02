@@ -105,6 +105,14 @@ async def create_stream_response(request_body: Dict[str, Any]) -> AsyncGenerator
                                     # Add index to each choice
                                     for i, choice in enumerate(data['choices']):
                                         choice['index'] = i
+                                # Add completion_tokens to usage if present
+                                if 'usage' in data:
+                                    if not isinstance(data['usage'], dict):
+                                        data['usage'] = {}
+                                    if 'completion_tokens' not in data['usage'] and 'prompt_tokens' in data['usage'] and 'total_tokens' in data['usage']:
+                                        data['usage']['completion_tokens'] = data['usage']['total_tokens'] - data['usage']['prompt_tokens']
+                                    elif 'completion_tokens' not in data['usage']:
+                                        data['usage']['completion_tokens'] = 0  # Initialize to 0
                                 # Add the object field and reconstruct
                                 data['object'] = 'chat.completion'
                                 modified_chunk = f'data: {json.dumps(data)}\n\n'
@@ -121,6 +129,14 @@ async def create_stream_response(request_body: Dict[str, Any]) -> AsyncGenerator
                                     # Add index to each choice
                                     for i, choice in enumerate(data['choices']):
                                         choice['index'] = i
+                                # Add completion_tokens to usage if present
+                                if 'usage' in data:
+                                    if not isinstance(data['usage'], dict):
+                                        data['usage'] = {}
+                                    if 'completion_tokens' not in data['usage'] and 'prompt_tokens' in data['usage'] and 'total_tokens' in data['usage']:
+                                        data['usage']['completion_tokens'] = data['usage']['total_tokens'] - data['usage']['prompt_tokens']
+                                    elif 'completion_tokens' not in data['usage']:
+                                        data['usage']['completion_tokens'] = 0  # Initialize to 0
                                 # Add the object field and reconstruct
                                 data['object'] = 'chat.completion'
                                 modified_chunk = json.dumps(data)
