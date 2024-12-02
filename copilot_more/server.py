@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from aiohttp import ClientSession, ClientTimeout
-from typing import Dict, List, AsyncGenerator, Any, Union
+from typing import Dict, List, AsyncGenerator, Any, Union, Optional
 import json
+import os
 
 from copilot_more.token import get_cached_copilot_token
 from copilot_more.logger import logger
@@ -22,6 +23,41 @@ app.add_middleware(
 API_URL = "https://api.individual.githubcopilot.com/chat/completions"
 TIMEOUT = ClientTimeout(total=300)
 EDITOR_VERSION = "vscode/1.95.3"
+
+# Get API key from environment variable
+API_KEY = os.getenv("API_KEY")
+
+def validate_api_key(authorization: Optional[str] = Header(None), api_key: Optional[str] = Header(None)) -> str:
+    """
+    Validate the API key from either Authorization or api-key header.
+    
+    Args:
+        authorization: Authorization header value
+        api_key: api-key header value
+        
+    Returns:
+        str: The validated API key
+        
+    Raises:
+        HTTPException: If no valid API key is found
+    """
+    if not API_KEY:
+        raise HTTPException(500, "API key not configured on server")
+
+    # Check Authorization header
+    if authorization:
+        if authorization.startswith("Bearer "):
+            key = authorization[7:]
+            if key == API_KEY:
+                return key
+        elif authorization == API_KEY:
+            return authorization
+
+    # Check api-key header
+    if api_key and api_key == API_KEY:
+        return api_key
+
+    raise HTTPException(401, "Invalid API key")
 
 def preprocess_request_body(request_body: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -66,6 +102,7 @@ async def create_stream_response(request_body: Dict[str, Any]) -> AsyncGenerator
     
     Args:
         request_body: The processed request body
+        api_key: The validated API key
         
     Yields:
         bytes: Chunks of the response
@@ -83,7 +120,7 @@ async def create_stream_response(request_body: Dict[str, Any]) -> AsyncGenerator
                     "Authorization": f"Bearer {token['token']}",
                     "Content-Type": "application/json",
                     "Accept": "text/event-stream",
-                    "editor-version": EDITOR_VERSION
+                    "editor-version": EDITOR_VERSION,
                 },
             ) as response:
                 if response.status != 200:
@@ -166,10 +203,15 @@ async def handle_chat_completion(request: Request) -> StreamingResponse:
         HTTPException: If request preprocessing fails
     """
     try:
+        # Validate API key from headers
+        validate_api_key(
+            request.headers.get("Authorization"),
+            request.headers.get("api-key")
+        )
+
         request_body = await request.json()
         logger.info(f"Received request: {json.dumps(request_body, indent=2)}")
         processed_body = preprocess_request_body(request_body)
-        
         
         return StreamingResponse(
             create_stream_response(processed_body),
