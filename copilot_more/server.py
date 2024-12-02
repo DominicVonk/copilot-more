@@ -75,45 +75,21 @@ def preprocess_request_body(request_body: Dict[str, Any]) -> Dict[str, Any]:
     if not request_body.get("messages"):
         return request_body
 
-    processed_messages: List[Dict[str, Union[str, List[Dict[str, str]]]]] = []
+    processed_messages: List[Dict[str, str]] = []
 
     for message in request_body["messages"]:
         if not isinstance(message.get("content"), list):
-            # If content is a string, convert to list format
-            content = message["content"]
-            if isinstance(content, str):
-                processed_messages.append({
-                    "role": message["role"],
-                    "content": [{"type": "text", "text": content}]
-                })
-            else:
-                processed_messages.append(message)
+            processed_messages.append(message)
             continue
 
-        message_content = []
         for content_item in message["content"]:
-            content_type = content_item.get("type")
-            if content_type == "text":
-                message_content.append({
-                    "type": "text",
-                    "text": content_item["text"]
-                })
-            elif content_type == "image_url":
-                # Handle image URL content
-                image_url = content_item.get("image_url", {})
-                if not isinstance(image_url, dict):
-                    image_url = {"url": str(image_url)}
-                message_content.append({
-                    "type": "image_url",
-                    "image_url": image_url
-                })
-            else:
-                raise HTTPException(400, f"Unsupported content type: {content_type}")
+            if content_item.get("type") != "text":
+                raise HTTPException(400, "Only text type is supported in content array")
 
-        processed_messages.append({
-            "role": message["role"],
-            "content": message_content
-        })
+            processed_messages.append({
+                "role": message["role"],
+                "content": content_item["text"]
+            })
 
     return {
         **request_body,
