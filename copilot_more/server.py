@@ -222,10 +222,44 @@ async def handle_chat_completion(request: Request) -> StreamingResponse:
     except Exception as e:
         raise HTTPException(400, f"Error processing request: {str(e)}")
 
+
+
 @app.post("/chat/completions")
 async def proxy_chat_completions(request: Request) -> StreamingResponse:
     """Proxies chat completion requests with SSE support."""
     return await handle_chat_completion(request)
+
+@app.get("/api/tags")
+async def get_tags():
+    """Returns available model tags, similar to Ollama's API."""
+    return {
+        "models": [
+            {
+                "name": "gpt-4o",
+                "modified_at": "",
+                "size": 0,
+                "digest": "",
+                "details": {
+                    "format": "gguf",
+                    "family": "github-copilot",
+                    "parameter_size": "unknown",
+                    "quantization_level": "none"
+                }
+            },
+            {
+                "name": "claude-3-5-sonnet",
+                "modified_at": "",
+                "size": 0,
+                "digest": "",
+                "details": {
+                    "format": "gguf",
+                    "family": "anthropic",
+                    "parameter_size": "unknown",
+                    "quantization_level": "none"
+                }
+            }
+        ]
+    }
 
 @app.post("/v1/chat/completions")
 async def v1_proxy_chat_completions(request: Request) -> StreamingResponse:
